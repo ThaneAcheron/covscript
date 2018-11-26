@@ -25,133 +25,160 @@ namespace cs_impl {
 	constexpr std::size_t default_allocate_buffer_size = 64;
 	template<typename T> using default_allocator_provider=std::allocator<T>;
 
+	enum class object_status {
+		normal, recycle, deposit, reachable
+	};
+
+	enum class object_authority {
+		normal, protect, constant
+	};
+
+	class any_object {
+	public:
+		object_status status = object_status::normal;
+
+		object_authority authority = object_authority::normal;
+
+		any_object() = default;
+
+		virtual ~ any_object() = default;
+
+		virtual const std::type_info &type() const = 0;
+
+		virtual any_object *duplicate() = 0;
+
+		virtual bool compare(const any_object *) const = 0;
+
+		virtual long to_integer() const = 0;
+
+		virtual std::string to_string() const = 0;
+
+		virtual std::size_t hash() const = 0;
+
+		virtual void detach() = 0;
+
+		virtual void kill() = 0;
+
+		virtual cs::namespace_t &get_ext() const = 0;
+
+		virtual const char *get_type_name() const = 0;
+	};
+
+	template<typename T>
+	class any_obj_instance : public any_object {
+	protected:
+		T mDat;
+	public:
+		static cov::allocator<any_obj_instance<T>, default_allocate_buffer_size, default_allocator_provider> allocator;
+
+		any_obj_instance() = default;
+
+		template<typename...ArgsT>
+		explicit any_obj_instance(ArgsT &&...args):mDat(std::forward<ArgsT>(args)...) {}
+
+		~ any_obj_instance() override = default;
+
+		const std::type_info &type() const override
+		{
+			return typeid(T);
+		}
+
+		any_object *duplicate() override
+		{
+			return allocator.alloc(mDat);
+		}
+
+		bool compare(const any_object *obj) const override
+		{
+			if (obj->type() == this->type())
+				return cs_impl::compare(mDat, static_cast<const any_obj_instance<T> *>(obj)->data());
+			else
+				return false;
+		}
+
+		long to_integer() const override
+		{
+			return cs_impl::to_integer(mDat);
+		}
+
+		std::string to_string() const override
+		{
+			return cs_impl::to_string(mDat);
+		}
+
+		std::size_t hash() const override
+		{
+			return cs_impl::hash<T>(mDat);
+		}
+
+		void detach() override
+		{
+			cs_impl::detach(mDat);
+		}
+
+		void kill() override
+		{
+			allocator.free(this);
+		}
+
+		virtual cs::namespace_t &get_ext() const override
+		{
+			return cs_impl::get_ext<T>();
+		}
+
+		const char *get_type_name() const override
+		{
+			return cs_impl::get_name_of_type<T>();
+		}
+
+		T &data()
+		{
+			return mDat;
+		}
+
+		const T &data() const
+		{
+			return mDat;
+		}
+
+		void data(const T &dat)
+		{
+			mDat = dat;
+		}
+	};
+	/*
+		class var final {
+			any_object* m_dat=nullptr;
+		public:
+			var()=delete;
+			var(any_object* obj):m_dat(obj) {}
+			var(const var&)=default;
+			var(var&&) noexcept=default;
+			~var()=default;
+		};
+	*/
 	class any final {
-		class baseHolder {
-		public:
-			baseHolder() = default;
-
-			virtual ~ baseHolder() = default;
-
-			virtual const std::type_info &type() const = 0;
-
-			virtual baseHolder *duplicate() = 0;
-
-			virtual bool compare(const baseHolder *) const = 0;
-
-			virtual long to_integer() const = 0;
-
-			virtual std::string to_string() const = 0;
-
-			virtual std::size_t hash() const = 0;
-
-			virtual void detach() = 0;
-
-			virtual void kill() = 0;
-
-			virtual cs::namespace_t &get_ext() const = 0;
-
-			virtual const char *get_type_name() const = 0;
-		};
-
-		template<typename T>
-		class holder : public baseHolder {
-		protected:
-			T mDat;
-		public:
-			static cov::allocator<holder<T>, default_allocate_buffer_size, default_allocator_provider> allocator;
-
-			holder() = default;
-
-			template<typename...ArgsT>
-			explicit holder(ArgsT &&...args):mDat(std::forward<ArgsT>(args)...) {}
-
-			~ holder() override = default;
-
-			const std::type_info &type() const override
-			{
-				return typeid(T);
-			}
-
-			baseHolder *duplicate() override
-			{
-				return allocator.alloc(mDat);
-			}
-
-			bool compare(const baseHolder *obj) const override
-			{
-				if (obj->type() == this->type())
-					return cs_impl::compare(mDat, static_cast<const holder<T> *>(obj)->data());
-				else
-					return false;
-			}
-
-			long to_integer() const override
-			{
-				return cs_impl::to_integer(mDat);
-			}
-
-			std::string to_string() const override
-			{
-				return cs_impl::to_string(mDat);
-			}
-
-			std::size_t hash() const override
-			{
-				return cs_impl::hash<T>(mDat);
-			}
-
-			void detach() override
-			{
-				cs_impl::detach(mDat);
-			}
-
-			void kill() override
-			{
-				allocator.free(this);
-			}
-
-			virtual cs::namespace_t &get_ext() const override
-			{
-				return cs_impl::get_ext<T>();
-			}
-
-			const char *get_type_name() const override
-			{
-				return cs_impl::get_name_of_type<T>();
-			}
-
-			T &data()
-			{
-				return mDat;
-			}
-
-			const T &data() const
-			{
-				return mDat;
-			}
-
-			void data(const T &dat)
-			{
-				mDat = dat;
-			}
-		};
-
 		struct proxy {
-			bool is_rvalue = false;
-			short protect_level = 0;
 			std::size_t refcount = 1;
-			baseHolder *data = nullptr;
+			any_object *data = nullptr;
 
-			proxy() = default;
+			proxy() = delete;
 
-			proxy(std::size_t rc, baseHolder *d) : refcount(rc), data(d) {}
+			proxy(std::size_t rc, any_object *d) : refcount(rc), data(d) {}
 
-			proxy(short pl, std::size_t rc, baseHolder *d) : protect_level(pl), refcount(rc), data(d) {}
+			proxy(object_authority a, std::size_t rc, any_object *d) : refcount(rc), data(d)
+			{
+				d->authority=a;
+			}
 
 			~proxy()
 			{
-				if (data != nullptr)
-					data->kill();
+				if (data != nullptr) {
+					if(data->status==object_status::deposit)
+						data->status=object_status::normal;
+					else
+						data->kill();
+				}
 			}
 		};
 
@@ -183,9 +210,9 @@ namespace cs_impl {
 		void swap(any &obj, bool raw = false)
 		{
 			if (this->mDat != nullptr && obj.mDat != nullptr && raw) {
-				if (this->mDat->protect_level > 0 || obj.mDat->protect_level > 0)
-					throw cov::error("E000J");
-				baseHolder *tmp = this->mDat->data;
+				if (this->mDat->data->authority != object_authority::normal || obj.mDat->data->authority != object_authority::normal)
+					throw cs::lang_error("Swap two variable which has limits of authority.");
+				any_object *tmp = this->mDat->data;
 				this->mDat->data = obj.mDat->data;
 				obj.mDat->data = tmp;
 			}
@@ -199,9 +226,9 @@ namespace cs_impl {
 		void swap(any &&obj, bool raw = false)
 		{
 			if (this->mDat != nullptr && obj.mDat != nullptr && raw) {
-				if (this->mDat->protect_level > 0 || obj.mDat->protect_level > 0)
-					throw cov::error("E000J");
-				baseHolder *tmp = this->mDat->data;
+				if (this->mDat->data->authority != object_authority::normal || obj.mDat->data->authority != object_authority::normal)
+					throw cs::lang_error("Swap two variable which has limits of authority.");
+				any_object *tmp = this->mDat->data;
 				this->mDat->data = obj.mDat->data;
 				obj.mDat->data = tmp;
 			}
@@ -215,8 +242,6 @@ namespace cs_impl {
 		void clone()
 		{
 			if (mDat != nullptr) {
-				if (mDat->protect_level > 2)
-					throw cov::error("E000L");
 				proxy *dat = allocator.alloc(1, mDat->data->duplicate());
 				recycle();
 				mDat = dat;
@@ -225,9 +250,9 @@ namespace cs_impl {
 
 		void try_move() const
 		{
-			if (mDat != nullptr && mDat->refcount == 1) {
-				mDat->protect_level = 0;
-				mDat->is_rvalue = true;
+			if (mDat != nullptr && mDat->refcount == 1&&mDat->data->status==object_status::normal) {
+				mDat->data->authority = object_authority::normal;
+				mDat->data->status = object_status::recycle;
 			}
 		}
 
@@ -239,31 +264,25 @@ namespace cs_impl {
 		template<typename T, typename...ArgsT>
 		static any make(ArgsT &&...args)
 		{
-			return any(allocator.alloc(1, holder<T>::allocator.alloc(std::forward<ArgsT>(args)...)));
+			return any(allocator.alloc(1, any_obj_instance<T>::allocator.alloc(std::forward<ArgsT>(args)...)));
 		}
 
 		template<typename T, typename...ArgsT>
 		static any make_protect(ArgsT &&...args)
 		{
-			return any(allocator.alloc(1, 1, holder<T>::allocator.alloc(std::forward<ArgsT>(args)...)));
+			return any(allocator.alloc(object_authority::protect, 1, any_obj_instance<T>::allocator.alloc(std::forward<ArgsT>(args)...)));
 		}
 
 		template<typename T, typename...ArgsT>
 		static any make_constant(ArgsT &&...args)
 		{
-			return any(allocator.alloc(2, 1, holder<T>::allocator.alloc(std::forward<ArgsT>(args)...)));
-		}
-
-		template<typename T, typename...ArgsT>
-		static any make_single(ArgsT &&...args)
-		{
-			return any(allocator.alloc(3, 1, holder<T>::allocator.alloc(std::forward<ArgsT>(args)...)));
+			return any(allocator.alloc(object_authority::constant, 1, any_obj_instance<T>::allocator.alloc(std::forward<ArgsT>(args)...)));
 		}
 
 		constexpr any() = default;
 
 		template<typename T>
-		any(const T &dat):mDat(allocator.alloc(1, holder<T>::allocator.alloc(dat))) {}
+		any(const T &dat):mDat(allocator.alloc(1, any_obj_instance<T>::allocator.alloc(dat))) {}
 
 		any(const any &v) : mDat(v.duplicate()) {}
 
@@ -305,11 +324,8 @@ namespace cs_impl {
 
 		void detach() const
 		{
-			if (this->mDat != nullptr) {
-				if (this->mDat->protect_level > 2)
-					throw cov::error("E000L");
+			if (this->mDat != nullptr)
 				this->mDat->data->detach();
-			}
 		}
 
 		cs::namespace_t &get_ext() const
@@ -334,54 +350,38 @@ namespace cs_impl {
 
 		bool is_rvalue() const
 		{
-			return this->mDat != nullptr && this->mDat->is_rvalue;
-		}
-
-		bool is_protect() const
-		{
-			return this->mDat != nullptr && this->mDat->protect_level > 0;
-		}
-
-		bool is_constant() const
-		{
-			return this->mDat != nullptr && this->mDat->protect_level > 1;
-		}
-
-		bool is_single() const
-		{
-			return this->mDat != nullptr && this->mDat->protect_level > 2;
+			return this->mDat != nullptr && this->mDat->data->status==object_status::recycle;
 		}
 
 		void mark_as_rvalue(bool value) const
 		{
-			if (this->mDat != nullptr)
-				this->mDat->is_rvalue = value;
+			if (this->mDat != nullptr&&this->mDat->data->status!=object_status::deposit)
+				this->mDat->data->status=value?object_status::recycle:object_status::normal;
+		}
+
+		bool is_protect() const
+		{
+			return this->mDat != nullptr && this->mDat->data->authority != object_authority::normal;
+		}
+
+		bool is_constant() const
+		{
+			return this->mDat != nullptr && this->mDat->data->authority == object_authority::constant;
 		}
 
 		void protect()
 		{
 			if (this->mDat != nullptr) {
-				if (this->mDat->protect_level > 1)
-					throw cov::error("E000G");
-				this->mDat->protect_level = 1;
+				if (this->mDat->data->authority != object_authority::normal)
+					throw cs::internal_error("Downgrade object authority.");
+				this->mDat->data->authority = object_authority::protect;
 			}
 		}
 
 		void constant()
 		{
 			if (this->mDat != nullptr) {
-				if (this->mDat->protect_level > 2)
-					throw cov::error("E000G");
-				this->mDat->protect_level = 2;
-			}
-		}
-
-		void single()
-		{
-			if (this->mDat != nullptr) {
-				if (this->mDat->protect_level > 3)
-					throw cov::error("E000G");
-				this->mDat->protect_level = 3;
+				this->mDat->data->authority = object_authority::constant;
 			}
 		}
 
@@ -423,11 +423,11 @@ namespace cs_impl {
 				throw cov::error("E0006");
 			if (this->mDat == nullptr)
 				throw cov::error("E0005");
-			if (this->mDat->protect_level > 1)
+			if (this->mDat->data->authority == object_authority::constant)
 				throw cov::error("E000K");
 			if (!raw)
 				clone();
-			return static_cast<holder<T> *>(this->mDat->data)->data();
+			return static_cast<any_obj_instance<T> *>(this->mDat->data)->data();
 		}
 
 		template<typename T>
@@ -437,7 +437,7 @@ namespace cs_impl {
 				throw cov::error("E0006");
 			if (this->mDat == nullptr)
 				throw cov::error("E0005");
-			return static_cast<const holder<T> *>(this->mDat->data)->data();
+			return static_cast<const any_obj_instance<T> *>(this->mDat->data)->data();
 		}
 
 		template<typename T>
@@ -447,7 +447,7 @@ namespace cs_impl {
 				throw cov::error("E0006");
 			if (this->mDat == nullptr)
 				throw cov::error("E0005");
-			return static_cast<const holder<T> *>(this->mDat->data)->data();
+			return static_cast<const any_obj_instance<T> *>(this->mDat->data)->data();
 		}
 
 		template<typename T>
@@ -460,7 +460,7 @@ namespace cs_impl {
 		{
 			if (&obj != this && obj.mDat != mDat) {
 				if (mDat != nullptr && obj.mDat != nullptr && raw) {
-					if (this->mDat->protect_level > 0 || obj.mDat->protect_level > 0)
+					if (this->mDat->data->authority != object_authority::normal || obj.mDat->data->authority != object_authority::normal)
 						throw cov::error("E000J");
 					mDat->data->kill();
 					mDat->data = obj.mDat->data->duplicate();
@@ -479,14 +479,14 @@ namespace cs_impl {
 		void assign(const T &dat, bool raw = false)
 		{
 			if (mDat != nullptr && raw) {
-				if (this->mDat->protect_level > 0)
+				if (this->mDat->data->authority != object_authority::normal)
 					throw cov::error("E000J");
 				mDat->data->kill();
-				mDat->data = holder<T>::allocator.alloc(dat);
+				mDat->data = any_obj_instance<T>::allocator.alloc(dat);
 			}
 			else {
 				recycle();
-				mDat = allocator.alloc(1, holder<T>::allocator.alloc(dat));
+				mDat = allocator.alloc(1, any_obj_instance<T>::allocator.alloc(dat));
 			}
 		}
 
@@ -513,19 +513,19 @@ namespace cs_impl {
 			return "false";
 	}
 
-	template<typename T> cov::allocator<any::holder<T>, default_allocate_buffer_size, default_allocator_provider> any::holder<T>::allocator;
+	template<typename T> cov::allocator<any_obj_instance<T>, default_allocate_buffer_size, default_allocator_provider> any_obj_instance<T>::allocator;
 	cov::allocator<any::proxy, default_allocate_buffer_size, default_allocator_provider> any::allocator;
 
 	template<int N>
-	class any::holder<char[N]> : public any::holder<std::string> {
+	class any_obj_instance<char[N]> : public any_obj_instance<std::string> {
 	public:
-		using holder<std::string>::holder;
+		using any_obj_instance<std::string>::any_obj_instance;
 	};
 
 	template<>
-	class any::holder<std::type_info> : public any::holder<std::type_index> {
+	class any_obj_instance<std::type_info> : public any_obj_instance<std::type_index> {
 	public:
-		using holder<std::type_index>::holder;
+		using any_obj_instance<std::type_index>::any_obj_instance;
 	};
 }
 
