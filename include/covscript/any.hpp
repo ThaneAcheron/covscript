@@ -146,17 +146,12 @@ namespace cs_impl {
 			mDat = dat;
 		}
 	};
-	/*
-		class var final {
-			any_object* m_dat=nullptr;
-		public:
-			var()=delete;
-			var(any_object* obj):m_dat(obj) {}
-			var(const var&)=default;
-			var(var&&) noexcept=default;
-			~var()=default;
-		};
-	*/
+
+	struct any_holder
+	{
+		any_object* object=nullptr;
+	};
+
 	class any final {
 		struct proxy {
 			std::size_t refcount = 1;
@@ -280,6 +275,11 @@ namespace cs_impl {
 		}
 
 		constexpr any() = default;
+
+		any(const any_holder& holder):mDat(allocator.alloc(1, holder.obj))
+		{
+			holder.obj->status=object_status::deposit;
+		}
 
 		template<typename T>
 		any(const T &dat):mDat(allocator.alloc(1, any_obj_instance<T>::allocator.alloc(dat))) {}
