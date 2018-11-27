@@ -306,7 +306,7 @@ namespace cs {
 		type(std::function<var()> c, const type_id &i, namespace_t ext) : constructor(std::move(c)), id(i),
 			extensions(std::move(std::move(ext))) {}
 
-		var &get_var(const std::string &) const;
+		cs_impl::any_holder &get_var(const std::string &) const;
 	};
 
 	class structure final {
@@ -326,18 +326,18 @@ namespace cs {
 		}
 
 		structure(const structure &s) : m_id(s.m_id), m_name(s.m_name),
-			m_data(std::make_shared<map_t<string, var >>())
+			m_data(std::make_shared<map_t<string, cs_impl::any_holder >>())
 		{
 			if (s.m_data->count("parent") > 0) {
-				var &_p = (*s.m_data)["parent"];
+				var _p = (*s.m_data)["parent"];
 				auto &_parent = _p.val<structure>(true);
 				var p = copy(_p);
 				auto &parent = p.val<structure>(true);
 				m_data->emplace("parent", p);
 				for (auto &it:*parent.m_data) {
 					// Handle overriding
-					var &v = (*s.m_data)[it.first];
-					if (!(*_parent.m_data)[it.first].is_same(v))
+					cs_impl::any_holder &v = (*s.m_data)[it.first];
+					if (v.object!=(*_parent.m_data)[it.first].object)
 						m_data->emplace(it.first, copy(v));
 					else
 						m_data->emplace(it.first, it.second);
@@ -368,7 +368,7 @@ namespace cs {
 				              var::make<structure>(&s)).const_val<bool>();
 			else {
 				for (auto &it:*m_data)
-					if (it.first != "parent" && (*s.m_data)[it.first] != it.second)
+					if (it.first != "parent" && (*s.m_data)[it.first].object != it.second.object)
 						return false;
 				return true;
 			}
@@ -384,7 +384,7 @@ namespace cs {
 			return m_id;
 		}
 
-		var &get_var(const std::string &name) const
+		cs_impl::any_holder &get_var(const std::string &name) const
 		{
 			if (m_data->count(name) > 0)
 				return (*m_data)[name];
@@ -462,7 +462,7 @@ namespace cs {
 	class name_space {
 		domain_t m_data;
 	public:
-		name_space() : m_data(std::make_shared<map_t<string, var >>()) {}
+		name_space() : m_data(std::make_shared<map_t<string, cs_impl::any_holder >>()) {}
 
 		name_space(const name_space &) = delete;
 
@@ -473,13 +473,13 @@ namespace cs {
 		name_space &add_var(const std::string &name, const var &var)
 		{
 			if (m_data->count(name) > 0)
-				(*m_data)[name] = var;
+				(*m_data)[name].replace(var.share_object());
 			else
 				m_data->emplace(name, var);
 			return *this;
 		}
 
-		var &get_var(const std::string &name)
+		cs_impl::any_holder &get_var(const std::string &name)
 		{
 			if (m_data->count(name) > 0)
 				return (*m_data)[name];
@@ -487,7 +487,7 @@ namespace cs {
 				throw runtime_error("Use of undefined variable \"" + name + "\".");
 		}
 
-		const var &get_var(const std::string &name) const
+		const cs_impl::any_holder &get_var(const std::string &name) const
 		{
 			if (m_data->count(name) > 0)
 				return (*m_data)[name];
@@ -541,7 +541,7 @@ namespace cs {
 		return std::make_shared<T>(std::forward<ArgsT>(args)...);
 	}
 
-	var &type::get_var(const std::string &name) const
+	cs_impl::any_holder &type::get_var(const std::string &name) const
 	{
 		if (extensions.get() != nullptr)
 			return extensions->get_var(name);

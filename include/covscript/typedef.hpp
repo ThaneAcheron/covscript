@@ -20,6 +20,7 @@
 */
 
 namespace cs_impl {
+	class any_holder;
 	class any;
 }
 namespace cs {
@@ -53,7 +54,7 @@ namespace cs {
 	using compiler_t=std::shared_ptr<compiler_type>;
 	using instance_t=std::shared_ptr<instance_type>;
 	using context_t=std::shared_ptr<context_type>;
-	using domain_t=std::shared_ptr<map_t<string, var>>;
+	using domain_t=std::shared_ptr<map_t<string, cs_impl::any_holder>>;
 	using namespace_t=std::shared_ptr<name_space>;
 	using istream=std::shared_ptr<std::istream>;
 	using ostream=std::shared_ptr<std::ostream>;

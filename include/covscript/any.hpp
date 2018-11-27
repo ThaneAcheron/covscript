@@ -150,6 +150,23 @@ namespace cs_impl {
 	struct any_holder
 	{
 		any_object* object=nullptr;
+
+		any_holder()=default;
+
+		any_holder(any_object* obj):object(obj) {}
+
+		any_holder(const any_holder&)=default;
+
+		any_holder(any_holder&&) noexcept=default;
+
+		void replace(any_object* obj)
+		{
+			if(object->status==object_status::deposit)
+				object->status=object_status::normal;
+			else
+				object->kill();
+			object=obj;
+		}
 	};
 
 	class any final {
@@ -276,9 +293,9 @@ namespace cs_impl {
 
 		constexpr any() = default;
 
-		any(const any_holder& holder):mDat(allocator.alloc(1, holder.obj))
+		any(const any_holder& holder):mDat(allocator.alloc(1, holder.object))
 		{
-			holder.obj->status=object_status::deposit;
+			holder.object->status=object_status::deposit;
 		}
 
 		template<typename T>
@@ -294,6 +311,16 @@ namespace cs_impl {
 		~any()
 		{
 			recycle();
+		}
+
+		any_object* share_object() const
+		{
+			if (this->mDat != nullptr)
+			{
+				this->mDat->data->status=object_status::deposit;
+				return this->mDat->data;
+			}else
+				throw cs::internal_error("Share null object from variable.");
 		}
 
 		const std::type_info &type() const
@@ -343,9 +370,14 @@ namespace cs_impl {
 				return cxx_demangle(this->mDat->data->get_type_name());
 		}
 
+		bool is_same(const any_holder &obj) const
+		{
+			return this->mDat->data == obj.object;
+		}
+
 		bool is_same(const any &obj) const
 		{
-			return this->mDat == obj.mDat;
+			return this->mDat->data == obj.mDat->data;
 		}
 
 		bool is_rvalue() const

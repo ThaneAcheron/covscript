@@ -439,12 +439,12 @@ namespace cs {
 			const std::string &id = static_cast<token_id *>(token)->get_id();
 			if (context->instance->storage.exist_record(id)) {
 				if (context->instance->storage.var_exist_current(id) &&
-				        context->instance->storage.get_var_current(id).is_protect())
+				        context->instance->storage.get_var_current(id).object->status!=cs_impl::object_status::normal)
 					it.data() = new_value(context->instance->storage.get_var(id));
 			}
 			else if (!context->instance->storage.exist_record_in_struct(id) &&
 			         context->instance->storage.var_exist(id) &&
-			         context->instance->storage.get_var(id).is_protect())
+			         context->instance->storage.get_var(id).object->status!=cs_impl::object_status::normal)
 				it.data() = new_value(context->instance->storage.get_var(id));
 			return;
 			break;

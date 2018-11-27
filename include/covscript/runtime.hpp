@@ -24,6 +24,7 @@ namespace cs {
 	class domain_manager {
 		std::deque<set_t < string>> m_set;
 		std::deque<domain_t> m_data;
+		std::vector<cs_impl::any_holder> m_pool;
 	public:
 		domain_manager()
 		{
@@ -42,7 +43,7 @@ namespace cs {
 
 		void add_domain()
 		{
-			m_data.emplace_front(std::make_shared<map_t<string, var >>());
+			m_data.emplace_front(std::make_shared<map_t<string, cs_impl::any_holder >>());
 		}
 
 		domain_t &get_domain()
@@ -107,7 +108,7 @@ namespace cs {
 			return m_data.back()->count(name) > 0;
 		}
 
-		var &get_var(const string &name)
+		cs_impl::any_holder &get_var(const string &name)
 		{
 			for (auto &domain:m_data)
 				if (domain->count(name) > 0)
@@ -115,14 +116,14 @@ namespace cs {
 			throw runtime_error("Use of undefined variable \"" + name + "\".");
 		}
 
-		var &get_var_current(const string &name)
+		cs_impl::any_holder &get_var_current(const string &name)
 		{
 			if (m_data.front()->count(name) > 0)
 				return (*m_data.front())[name];
 			throw runtime_error("Use of undefined variable \"" + name + "\" in current domain.");
 		}
 
-		var &get_var_global(const string &name)
+		cs_impl::any_holder &get_var_global(const string &name)
 		{
 			if (m_data.back()->count(name) > 0)
 				return (*m_data.back())[name];
@@ -147,12 +148,12 @@ namespace cs {
 		{
 			if (var_exist_current(name)) {
 				if (is_override)
-					(*m_data.front())[name] = val;
+					(*m_data.front())[name].replace(val.share_object());
 				else
 					throw runtime_error("Target domain exist variable \"" + name + "\".");
 			}
 			else
-				m_data.front()->emplace(name, val);
+				m_data.front()->emplace(name, val.share_object());
 			return *this;
 		}
 
@@ -161,7 +162,7 @@ namespace cs {
 			if (var_exist_global(name))
 				throw runtime_error("Target domain exist variable \"" + name + "\".");
 			else
-				m_data.back()->emplace(name, var);
+				m_data.back()->emplace(name, var.share_object());
 			return *this;
 		}
 

@@ -147,14 +147,14 @@ namespace cs {
 		else if (a.type() == typeid(type))
 			return a.val<type>(true).get_var(static_cast<token_id *>(b)->get_id());
 		else if (a.type() == typeid(structure)) {
-			var &val = a.val<structure>(true).get_var(static_cast<token_id *>(b)->get_id());
+			var val = a.val<structure>(true).get_var(static_cast<token_id *>(b)->get_id());
 			if (val.type() == typeid(callable) && val.const_val<callable>().is_member_fn())
 				return var::make_protect<object_method>(a, val);
 			else
 				return val;
 		}
 		else {
-			var &val = a.get_ext()->get_var(static_cast<token_id *>(b)->get_id());
+			var val = a.get_ext()->get_var(static_cast<token_id *>(b)->get_id());
 			if (val.type() == typeid(callable))
 				return var::make_protect<object_method>(a, val, val.const_val<callable>().is_constant());
 			else
