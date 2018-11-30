@@ -545,9 +545,6 @@ namespace cs_impl {
 			return "false";
 	}
 
-	template<typename T> cov::allocator<any_obj_instance<T>, default_allocate_buffer_size, default_allocator_provider> any_obj_instance<T>::allocator;
-	cov::allocator<any::proxy, default_allocate_buffer_size, default_allocator_provider> any::allocator;
-
 	template<int N>
 	class any_obj_instance<char[N]> : public any_obj_instance<std::string> {
 	public:
@@ -559,13 +556,11 @@ namespace cs_impl {
 	public:
 		using any_obj_instance<std::type_index>::any_obj_instance;
 	};
+
+	template<typename T> cov::allocator<any::holder<T>, default_allocate_buffer_size, default_allocator_provider> any::holder<T>::allocator;
 }
 
-std::ostream &operator<<(std::ostream &out, const cs_impl::any &val)
-{
-	out << val.to_string();
-	return out;
-}
+std::ostream &operator<<(std::ostream &, const cs_impl::any &);
 
 namespace std {
 	template<>

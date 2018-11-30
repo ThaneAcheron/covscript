@@ -18,7 +18,10 @@
 * Github: https://github.com/mikecovlee
 * Website: http://covscript.org
 */
-#include "covscript.cpp"
+//#include "covscript.cpp"
+#include <covscript/console/conio.hpp>
+#include <covscript/covscript.hpp>
+#include <iostream>
 
 std::string log_path;
 bool wait_before_exit = false;
@@ -70,7 +73,7 @@ void covscript_main(int args_size, const char *args[])
 	arg{cs::var::make_constant<cs::string>("<REPL_ENV>")};
 	for (; index < args_size; ++index)
 		arg.emplace_back(cs::var::make_constant<cs::string>(args[index]));
-	cs::context_t context = cs::create_context("<REPL_ENV>", arg);
+	cs::context_t context = cs::create_context(arg);
 	cs::repl repl(context);
 	std::ofstream log_stream;
 	std::string line;

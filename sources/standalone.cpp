@@ -18,7 +18,10 @@
 * Github: https://github.com/mikecovlee
 * Website: http://covscript.org
 */
-#include "covscript.cpp"
+//#include "covscript.cpp"
+#include <covscript/console/conio.hpp>
+#include <covscript/covscript.hpp>
+#include <iostream>
 
 std::string log_path;
 bool dump_ast = false;
@@ -76,7 +79,7 @@ void covscript_main(int args_size, const char *args[])
 		arg;
 		for (; index < args_size; ++index)
 			arg.emplace_back(cs::var::make_constant<cs::string>(args[index]));
-		cs::context_t context = cs::create_context(path, arg);
+		cs::context_t context = cs::create_context(arg);
 		context->compiler->disable_optimizer = no_optimize;
 		context->instance->compile(path);
 		if (dump_ast) {

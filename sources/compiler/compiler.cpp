@@ -19,7 +19,6 @@
 */
 #include <covscript/compiler.hpp>
 #include <covscript/codegen.hpp>
-#include <covscript/statement.hpp>
 
 namespace cs {
 	bool token_signal::dump(std::ostream &o) const
@@ -648,16 +647,16 @@ namespace cs {
 		stream << " >";
 	}
 
-	void translator_type::translate(const std::deque<std::deque<token_base *>> &lines,
+	void translator_type::translate(const context_t &context, const std::deque<std::deque<token_base *>> &lines,
 	                                std::deque<statement_base *> &statements, bool raw)
 	{
 		std::deque<std::deque<token_base *>> tmp;
 		method_base *method = nullptr;
-		token_endline *endsig = nullptr;
+		std::size_t method_line_num = 0, line_num = 0;
 		int level = 0;
 		for (auto &it:lines) {
 			std::deque<token_base *> line = it;
-			endsig = static_cast<token_endline *>(line.back());
+			line_num = static_cast<token_endline *>(line.back())->get_line_num();
 			try {
 				if (raw)
 					context->compiler->process_line(line);
@@ -675,12 +674,13 @@ namespace cs {
 							--level;
 						}
 						if (level == 0) {
-							sptr = method->translate(tmp);
+							line_num = method_line_num;
+							sptr = method->translate(context, tmp);
 							tmp.clear();
 							method = nullptr;
 						}
 						else {
-							m->preprocess({line});
+							m->preprocess(context, {line});
 							tmp.push_back(line);
 						}
 					}
@@ -689,8 +689,8 @@ namespace cs {
 							throw runtime_error("Hanging end statement.");
 						else {
 							if (raw)
-								m->preprocess({line});
-							sptr = m->translate({line});
+								m->preprocess(context, {line});
+							sptr = m->translate(context, {line});
 						}
 					}
 					if (sptr != nullptr)
@@ -698,17 +698,19 @@ namespace cs {
 				}
 				break;
 				case method_types::block: {
-					if (level == 0)
+					if (level == 0) {
+						method_line_num = static_cast<token_endline *>(line.back())->get_line_num();
 						method = m;
+					}
 					++level;
 					context->instance->storage.add_domain();
 					context->instance->storage.add_set();
-					m->preprocess({line});
+					m->preprocess(context, {line});
 					tmp.push_back(line);
 				}
 				break;
 				case method_types::jit_command:
-					m->translate({line});
+					m->translate(context, {line});
 					break;
 				}
 			}
@@ -716,8 +718,7 @@ namespace cs {
 				throw e;
 			}
 			catch (const std::exception &e) {
-				throw exception(endsig->get_line_num(), context->file_path,
-				                context->file_buff.at(endsig->get_line_num() - 1), e.what());
+				throw exception(line_num, context->file_path, context->file_buff.at(line_num - 1), e.what());
 			}
 		}
 		if (level != 0)
